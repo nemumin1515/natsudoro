@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#38251c">
+  <script>
+    if (location.protocol === 'file:') {
+      location.replace(new URL('../play-offline.html', location.href).href);
+    }
+  </script>
+  <title>ナッツ強盗をさがせ！（PeerJS版 v3）</title>
+  <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./tutorial.css">
+</head>
+<body>
+  <div id="rotateNotice" aria-hidden="true">
+    <div class="rotate-card">
+      <span class="rotate-icon">↻</span>
+      <strong>端末を横向きにしてください</strong>
+      <small>このゲームは16:9の横画面用です。</small>
+    </div>
+  </div>
+
+  <div id="app">
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-nut">●</span>
+        <span>ナッツ強盗をさがせ！</span>
+      </div>
+      <span class="step-chip">Peer v3</span>
+      <span id="connectionChip" class="connection-chip offline">接続中</span>
+    </header>
+
+    <main>
+      <section id="homeScreen" class="screen active">
+        <div class="home-grid">
+          <article class="panel intro-panel">
+            <p class="eyebrow">インターネット経由で 1〜11人</p>
+            <h1>親機PCに、みんなで集合！</h1>
+            <p>親機が作ったQRコードを読み取ると、スマホや別のPCから同じ部屋に参加できます。</p>
+            <div class="feature-row">
+              <span>📱 仮想スティック</span>
+              <span>🎮 ゲームパッド</span>
+              <span>⌨️ WASD・矢印</span>
+            </div>
+            <button id="createRoomButton" class="primary large" type="button">親機として部屋を作る</button>
+            <button class="secondary tut-open-button" type="button" data-tutorial>📖 あそびかた</button>
+          </article>
+
+          <article class="panel join-panel">
+            <div id="hostShare" class="host-share hidden">
+              <div>
+                <p class="eyebrow">参加用QRコード</p>
+                <strong id="hostRoomCode" class="room-code">------</strong>
+              </div>
+              <img id="qrImage" alt="参加用QRコード" width="180" height="180">
+              <p id="qrStatus" class="qr-status">QRコードを準備しています…</p>
+              <div id="urlChoices" class="url-choices"></div>
+              <button id="copyUrlButton" class="secondary compact" type="button">参加URLをコピー</button>
+            </div>
+
+            <form id="joinForm">
+              <div class="tut-join-hint"><span>はじめての人は、まずここから！</span><button class="secondary compact tut-open-button" type="button" data-tutorial>📖 あそびかた</button></div>
+              <h2>ゲームに参加</h2>
+              <label>
+                <span>部屋番号</span>
+                <input id="roomCodeInput" name="roomCode" maxlength="6" autocomplete="off" placeholder="6文字" required>
+              </label>
+              <label>
+                <span>名前（12文字まで）</span>
+                <input id="nameInput" name="name" maxlength="12" autocomplete="nickname" placeholder="なまえ" required>
+              </label>
+              <fieldset>
+                <legend>キャラクター（重複なし）</legend>
+                <div id="homeCharacterGrid" class="character-grid" aria-label="キャラクター選択"></div>
+              </fieldset>
+              <button id="joinButton" class="primary" type="submit">この部屋に参加</button>
+            </form>
+          </article>
+        </div>
+      </section>
+
+      <section id="lobbyScreen" class="screen">
+        <div class="lobby-layout">
+          <article class="panel lobby-main">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">待機部屋</p>
+                <h2>部屋 <span id="lobbyRoomCode">------</span></h2>
+              </div>
+              <div class="host-controls">
+                <button class="secondary compact tut-open-button" type="button" data-tutorial>📖 あそびかた</button>
+                <button id="toggleQrButton" class="secondary compact hidden" type="button">QRを表示</button>
+              </div>
+            </div>
+            <div id="lobbyQr" class="lobby-qr hidden">
+              <img id="lobbyQrImage" alt="参加用QRコード" width="160" height="160">
+              <div>
+                <strong>スマホのカメラで読み取ります</strong>
+                <p id="lobbyJoinUrl" class="small-url"></p>
+                <p id="lobbyQrStatus" class="qr-status">QRコードを準備しています…</p>
+              </div>
+            </div>
+            <div id="playerList" class="player-list"></div>
+            <div id="npcControls" class="npc-controls hidden">
+              <button id="addNpcButton" class="secondary" type="button">＋ NPCを追加</button>
+              <span id="npcHint" class="hint">NPCも参加人数に含まれます。</span>
+            </div>
+            <div class="lobby-actions">
+              <button id="readyButton" class="secondary" type="button">準備OKにする</button>
+              <div id="hostStartControls" class="host-controls hidden">
+                <button id="testStartButton" class="secondary" type="button">親機を犯人にしてテスト</button>
+                <button id="normalStartButton" class="primary" type="button" disabled>ゲームを開始</button>
+              </div>
+            </div>
+            <p id="startHint" class="hint">全員が準備OKになると始められます。</p>
+          </article>
+
+          <aside class="panel character-panel">
+            <p class="eyebrow">自分のキャラクター</p>
+            <h2>空いているキャラへ変更</h2>
+            <div id="lobbyCharacterGrid" class="character-grid"></div>
+            <p class="asset-note">添付された12種類から選べます。参加上限は11人のままです。</p>
+          </aside>
+        </div>
+      </section>
+
+      <section id="gameScreen" class="screen game-screen">
+        <div class="game-shell">
+          <div class="game-hud">
+            <div>
+              <span class="hud-label">部屋</span>
+              <strong id="gameRoomCode">------</strong>
+            </div>
+            <div>
+              <span class="hud-label">参加者</span>
+              <strong id="gamePlayerCount">0 / 11</strong>
+            </div>
+            <div>
+              <span class="hud-label">場所</span>
+              <strong id="areaName">ふかふか寝床</strong>
+            </div>
+            <div class="hud-help">移動：画面をドラッグ / WASD　生活：Z 食事 / X 丸太 / C 回し車 / M 会議　犯人：E 奪う / Q 通気口 / F 停電　特殊：R 調査 / T 変身 / G 料理</div>
+            <button class="secondary hud-tutorial" type="button" data-tutorial aria-label="あそびかた">📖</button>
+            <button id="returnLobbyButton" class="danger compact hidden" type="button">ロビーへ戻す</button>
+          </div>
+
+          <div id="gameViewport" class="game-viewport">
+            <canvas id="gameCanvas" width="960" height="540" aria-label="ゲームマップ。画面を押したまま指を動かすと、その方向へ移動します" title="画面を押したまま指を動かすと、その方向へ移動します"></canvas>
+            <div id="pausedOverlay" class="paused-overlay hidden">
+              <strong>通信が戻るのを待っています</strong>
+              <span id="pausedText">30秒間待ちます。</span>
+            </div>
+            <div class="game-status" aria-live="polite">
+              <span id="roleBadge" class="status-badge">役職：確認中</span>
+              <span id="nutBadge" class="status-badge nut-badge">🥜 ナッツあり</span>
+              <span id="ghostBadge" class="status-badge ghost-badge hidden">姿が見えません</span>
+              <span id="expelledBadge" class="status-badge expelled-badge hidden">追放されました</span>
+              <span id="blackoutBadge" class="status-badge blackout-badge hidden">停電中</span>
+              <span id="hungerBadge" class="status-badge hunger-badge">空腹度 0 / 100</span>
+              <span id="digestionBadge" class="status-badge digestion-badge">吸収効率：半分</span>
+              <span id="wheelBadge" class="status-badge wheel-badge">回し車 100%</span>
+            </div>
+            <div id="commonActions" class="common-action-pad" aria-label="生活の行動">
+              <button id="eatButton" class="action-button eat-action" type="button">
+                <span>🍱</span><strong>食べる</strong><small id="eatHint">定食を探す</small>
+              </button>
+              <button id="gnawButton" class="action-button gnaw-action" type="button">
+                <span>🪵</span><strong>丸太</strong><small id="gnawHint">近づく</small>
+              </button>
+              <button id="wheelButton" class="action-button wheel-action" type="button">
+                <span>☸</span><strong>回す</strong><small id="wheelHint">近づく</small>
+              </button>
+              <button id="meetingButton" class="action-button meeting-action" type="button">
+                <span>📣</span><strong>会議</strong><small id="meetingHint">ナッツ所持者</small>
+              </button>
+            </div>
+            <div id="culpritActions" class="action-pad hidden" aria-label="ナッツ強盗の行動">
+              <button id="stealButton" class="action-button steal-action" type="button">
+                <span>🥜</span><strong>奪う</strong><small id="stealCooldown">近くの相手</small>
+              </button>
+              <button id="ventButton" class="action-button vent-action" type="button">
+                <span>❧</span><strong>通気口</strong><small id="ventCooldown">柄マットで使用</small>
+              </button>
+              <button id="blackoutButton" class="action-button blackout-action" type="button">
+                <span>💡</span><strong>停電</strong><small id="blackoutCooldown">使用可能</small>
+              </button>
+            </div>
+            <div id="specialRoleActions" class="special-role-actions hidden" aria-label="特殊役職の行動">
+              <button id="investigateButton" class="action-button investigate-action hidden" type="button">
+                <span>🔎</span><strong>調査</strong><small id="investigateHint">近くの相手</small>
+              </button>
+              <button id="disguiseButton" class="action-button disguise-action hidden" type="button">
+                <span>🎭</span><strong>変身</strong><small id="disguiseHint">近くの相手</small>
+              </button>
+              <button id="chefButton" class="action-button chef-action hidden" type="button">
+                <span>🍳</span><strong>料理</strong><small id="chefHint">現在地に置く</small>
+              </button>
+            </div>
+            <div id="investigationResult" class="investigation-result hidden" aria-live="polite">
+              <span>🔎 調査結果</span>
+              <strong id="investigationResultText"></strong>
+            </div>
+            <div id="joystick" class="joystick" aria-label="移動スティック">
+              <div id="joystickKnob" class="joystick-knob"></div>
+            </div>
+            <div id="ventChoiceOverlay" class="vent-choice-overlay hidden">
+              <article class="vent-choice-card">
+                <p class="eyebrow">すべての通気口につながっています</p>
+                <h2>移動先を選ぶ</h2>
+                <div id="ventChoiceGrid" class="vent-choice-grid"></div>
+                <button id="closeVentChoiceButton" class="secondary" type="button">やめる</button>
+              </article>
+            </div>
+            <div id="roleOverlay" class="role-overlay hidden">
+              <article id="roleCard" class="role-card">
+                <p class="eyebrow">あなたの役職</p>
+                <div id="roleIcon" class="role-icon">?</div>
+                <h2 id="roleTitle">確認中</h2>
+                <p id="roleDescription"></p>
+                <p id="culpritCountText" class="role-count"></p>
+                <button id="closeRoleButton" class="primary" type="button">役職を確認して開始</button>
+                <small class="role-close-help">この役職画面のどこをタップしても閉じられます。</small>
+              </article>
+            </div>
+            <div id="meetingOverlay" class="meeting-overlay hidden">
+              <article class="meeting-card">
+                <div class="meeting-title-row">
+                  <div>
+                    <p class="eyebrow">話し合って投票</p>
+                    <h2>緊急会議</h2>
+                  </div>
+                  <strong id="meetingTimer" class="meeting-timer">30</strong>
+                </div>
+                <p id="meetingCaller">会議が開かれました。</p>
+                <p id="meetingCannotVote" class="meeting-warning hidden">ナッツを持っていないため、投票には参加できません。</p>
+                <section class="vote-section" aria-label="通報する人を選ぶ">
+                  <h3>通報する人を選ぶ</h3>
+                  <p id="voteCandidateHint" class="vote-candidate-hint">別のステージにいる人やNPCも選べます。</p>
+                  <div id="voteGrid" class="vote-grid" role="group" aria-label="通報する相手の一覧"></div>
+                  <button id="skipVoteButton" class="secondary vote-skip" type="button">今回は誰も追放しない</button>
+                  <p id="meetingStatus" class="meeting-status">投票先を1人選んでください。</p>
+                </section>
+                <section class="testimony-section" aria-label="場所の証言">
+                  <h3>みんなの場所の証言</h3>
+                  <p>自分がいたと思う場所を選んでください。証言は自己申告で、全員に見えます。</p>
+                  <div id="testimonyControls" class="testimony-controls">
+                    <label>ステージ
+                      <select id="testimonyArea" aria-label="証言するステージ">
+                        <option value="">選んでください</option>
+                        <option value="bedroom">ふかふか寝床</option>
+                        <option value="dining">丸太食堂</option>
+                        <option value="cloud">天空の雲庭</option>
+                      </select>
+                    </label>
+                    <label>場所
+                      <select id="testimonyZone" aria-label="証言する場所">
+                        <option value="">選んでください</option>
+                        <option value="upper-left">左上</option>
+                        <option value="upper-right">右上</option>
+                        <option value="center">中央付近</option>
+                        <option value="lower-left">左下</option>
+                        <option value="lower-right">右下</option>
+                      </select>
+                    </label>
+                    <button id="shareTestimonyButton" class="primary" type="button">証言を共有</button>
+                  </div>
+                  <p id="testimonyHint" class="testimony-hint">会議中に1回だけ証言できます。</p>
+                  <div id="testimonyList" class="testimony-list" aria-live="polite"></div>
+                </section>
+              </article>
+            </div>
+            <div id="expulsionOverlay" class="expulsion-overlay hidden" aria-live="assertive">
+              <div class="expulsion-scene">
+                <div class="human-hand" aria-hidden="true">
+                  <div class="hand-arm"></div>
+                  <div class="hand-palm"></div>
+                  <div class="hand-finger finger-left"></div>
+                  <div class="hand-finger finger-right"></div>
+                </div>
+                <img id="expelledCharacterImage" class="expelled-character" alt="追放されるキャラクター">
+                <h2 id="expulsionTitle">つまみ出されました</h2>
+                <p id="expulsionRole"></p>
+              </div>
+            </div>
+            <div id="gameOverOverlay" class="game-over-overlay hidden">
+              <article id="gameOverCard" class="game-over-card">
+                <p class="eyebrow">ゲーム終了</p>
+                <div id="gameOverIcon" class="game-over-icon">🏆</div>
+                <h2 id="gameOverTitle">勝利！</h2>
+                <p id="gameOverMessage"></p>
+                <p id="culpritReveal" class="culprit-reveal"></p>
+                <button id="resultReturnLobbyButton" class="primary hidden" type="button">ロビーへ戻る</button>
+                <small id="resultWaitText">親機がロビーへ戻すまで待ってください。</small>
+              </article>
+            </div>
+          </div>
+          <div id="testModeBanner" class="test-banner hidden">犯人テスト中：親機がナッツ強盗です。回し車は20秒で空になり、停電は回すと復旧します。</div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script src="./qrcode-browser.js"></script>
+  <script src="./host-engine.js"></script>
+  <script src="./peerjs.min.js"></script>
+  <script src="./peer-config.js"></script>
+  <script src="./peer-socket.js"></script>
+  <script src="./tutorial.js"></script>
+  <script src="./client.js"></script>
+</body>
+</html>
