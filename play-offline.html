@@ -1,0 +1,540 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <title>ナッツ強盗をさがせ！ 1人練習版</title>
+  <style>
+    :root { color-scheme: dark; --gold:#ffd36b; --ink:#fff8e9; --panel:rgba(44,28,21,.96); }
+    * { box-sizing:border-box; }
+    html,body { width:100%; min-height:100%; margin:0; overflow:hidden; background:#20130f; color:var(--ink); font-family:"Yu Gothic UI",system-ui,sans-serif; }
+    button { font:inherit; font-weight:900; cursor:pointer; border:0; }
+    button:disabled { opacity:.4; cursor:not-allowed; }
+    .game { width:min(100vw,calc(100dvh * 16 / 9)); aspect-ratio:16/9; position:absolute; inset:50% auto auto 50%; transform:translate(-50%,-50%); background:#856648; overflow:hidden; }
+    canvas { width:100%; height:100%; display:block; touch-action:none; }
+    .top-status { position:absolute; top:10px; left:10px; right:10px; display:flex; gap:7px; flex-wrap:wrap; pointer-events:none; }
+    .badge { padding:6px 10px; border:1px solid rgba(255,255,255,.28); border-radius:999px; background:rgba(24,15,12,.82); font-size:clamp(10px,1.7vw,14px); font-weight:900; }
+    .badge.role { background:rgba(130,38,30,.9); }
+    .menu { position:fixed; inset:0; z-index:30; display:grid; place-items:center; padding:18px; overflow:auto; background:linear-gradient(145deg,#21140f,#573523); }
+    .menu.hidden { display:none; }
+    .card { width:min(720px,96vw); padding:clamp(18px,4vw,30px); border:1px solid rgba(255,255,255,.18); border-radius:24px; background:var(--panel); box-shadow:0 20px 70px rgba(0,0,0,.45); }
+    h1 { margin:0 0 8px; color:var(--gold); font-size:clamp(25px,5vw,44px); }
+    p { line-height:1.6; }
+    .notice { padding:10px 12px; border-radius:12px; background:rgba(255,211,107,.12); border:1px solid rgba(255,211,107,.3); }
+    .character-grid { display:grid; grid-template-columns:repeat(6,minmax(52px,1fr)); gap:8px; margin:12px 0 18px; }
+    .character { position:relative; aspect-ratio:1; padding:3px; border-radius:13px; color:#fff; background:rgba(255,255,255,.06); border:3px solid transparent; overflow:hidden; }
+    .character.selected { border-color:var(--gold); background:rgba(255,211,107,.18); }
+    .character img { width:100%; height:100%; object-fit:contain; }
+    .character span { position:absolute; right:4px; bottom:2px; text-shadow:0 1px 3px #000; font-size:10px; }
+    .start { width:100%; min-height:52px; border-radius:14px; color:#311d0f; background:linear-gradient(#ffe49a,#efad3f); box-shadow:0 6px 0 #9d5b1c; }
+    .asset-state { margin:10px 0; color:#d9c9ba; font-size:13px; }
+    .asset-state.error { color:#ffada4; }
+    .vent-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; margin:14px 0; }
+    .vent-choice { min-height:58px; padding:8px; border-radius:13px; color:#17301d; background:linear-gradient(#d7ffd2,#83d987); box-shadow:0 4px 0 #377640; }
+    .cancel { width:100%; min-height:46px; border-radius:13px; color:#fff; background:#704a38; }
+    .joystick { position:absolute; left:max(20px,env(safe-area-inset-left)); bottom:max(20px,env(safe-area-inset-bottom)); width:clamp(88px,15vw,126px); aspect-ratio:1; border:3px solid rgba(255,255,255,.4); border-radius:50%; background:rgba(20,13,10,.38); touch-action:none; }
+    .joystick::after { content:"移動"; position:absolute; inset:0; display:grid; place-items:center; color:rgba(255,255,255,.38); font-size:11px; font-weight:900; }
+    .knob { position:absolute; left:50%; top:50%; width:46%; aspect-ratio:1; transform:translate(-50%,-50%); border-radius:50%; background:rgba(255,224,153,.88); border:3px solid rgba(255,255,255,.48); z-index:1; }
+    .actions { position:absolute; right:max(18px,env(safe-area-inset-right)); display:flex; gap:7px; }
+    .culprit-actions { bottom:max(101px,calc(env(safe-area-inset-bottom) + 101px)); }
+    .life-actions { bottom:max(18px,env(safe-area-inset-bottom)); }
+    .action { width:clamp(62px,10vw,84px); aspect-ratio:1; padding:5px; border-radius:50%; display:grid; place-content:center; color:#fff; border:2px solid rgba(255,255,255,.38); box-shadow:0 5px 0 rgba(0,0,0,.35); text-shadow:0 1px 2px #000; }
+    .action span { font-size:clamp(18px,3vw,26px); line-height:1; }
+    .action small { font-size:clamp(8px,1.4vw,11px); }
+    #steal { background:#a64636; } #vent { background:#397c4f; } #blackout { background:#464266; }
+    #eat { background:#bd712b; } #gnaw { background:#76502d; } #wheel { background:#367b85; }
+    .back { position:absolute; top:10px; right:10px; z-index:4; padding:7px 10px; border-radius:10px; color:#fff; background:rgba(90,35,30,.9); }
+    .toast { position:absolute; left:50%; bottom:18px; transform:translate(-50%,20px); opacity:0; transition:.18s; max-width:72%; padding:9px 14px; border-radius:12px; text-align:center; background:rgba(22,14,11,.94); pointer-events:none; }
+    .toast.show { opacity:1; transform:translate(-50%,0); }
+    .portrait { display:none; position:fixed; inset:0; z-index:50; place-items:center; text-align:center; padding:30px; background:#241610; }
+    @media (orientation:portrait) and (max-width:900px) { .portrait { display:grid; } }
+    @media (max-height:520px) and (orientation:landscape) { .life-actions,.joystick { bottom:max(12px,env(safe-area-inset-bottom)); } .culprit-actions { bottom:max(89px,calc(env(safe-area-inset-bottom) + 89px)); } .back { display:none; } }
+  </style>
+</head>
+<body>
+  <div class="game">
+    <canvas id="canvas" width="960" height="540"></canvas>
+    <div class="top-status">
+      <span class="badge role">練習役職：ナッツ強盗</span>
+      <span id="area" class="badge">ふかふか寝床</span>
+      <span id="light" class="badge">明かり：正常</span>
+      <span id="hunger" class="badge">空腹度：0 / 100</span>
+      <span id="digestion" class="badge">吸収効率：半分</span>
+      <span id="power" class="badge">回し車：100%</span>
+    </div>
+    <button id="back" class="back" type="button">キャラ選択へ</button>
+    <div id="joystick" class="joystick" aria-label="移動スティック"><div id="knob" class="knob"></div></div>
+    <div class="actions culprit-actions">
+      <button id="steal" class="action" type="button"><span>🥜</span><small>奪う（E）</small></button>
+      <button id="vent" class="action" type="button"><span>❧</span><small>通気口（Q）</small></button>
+      <button id="blackout" class="action" type="button"><span>💡</span><small>停電（F）</small></button>
+    </div>
+    <div class="actions life-actions">
+      <button id="eat" class="action" type="button"><span>🍱</span><small>食べる（Z）</small></button>
+      <button id="gnaw" class="action" type="button"><span>🪵</span><small>丸太（X）</small></button>
+      <button id="wheel" class="action" type="button"><span>☸</span><small>回す（C）</small></button>
+    </div>
+    <div id="toast" class="toast" role="status"></div>
+  </div>
+
+  <section id="menu" class="menu">
+    <div class="card">
+      <h1>ナッツ強盗をさがせ！</h1>
+      <p class="notice"><strong>これは1人練習版です。</strong><br>3つのステージ、移動・空腹・ご飯・丸太・回し車・犯人の行動を確認できます。上下中央の橋から別のステージへ移動できます。</p>
+      <p>使うキャラクターを選んでください。</p>
+      <div id="characters" class="character-grid"></div>
+      <p id="assetState" class="asset-state">画像を読み込んでいます…</p>
+      <button id="start" class="start" type="button" disabled>練習を始める</button>
+    </div>
+  </section>
+
+  <section id="ventMenu" class="menu hidden">
+    <div class="card">
+      <h1>移動先を選ぶ</h1>
+      <p class="notice">すべての通気口につながっています。</p>
+      <div id="ventChoices" class="vent-grid"></div>
+      <button id="closeVentMenu" class="cancel" type="button">やめる</button>
+    </div>
+  </section>
+
+  <div class="portrait"><div><strong>端末を横向きにしてください</strong><p>このゲームは横画面用です。</p></div></div>
+
+  <script>
+  (() => {
+    'use strict';
+    const WORLD = { width: 1920, height: 1080 };
+    const RADIUS = 29;
+    const SPEED = 245;
+    const FOOD_SPOTS = [
+      { id:'bedroom-meal-1', area:'bedroom', x:390, y:245 },
+      { id:'bedroom-meal-2', area:'bedroom', x:1530, y:245 },
+      { id:'bedroom-meal-3', area:'bedroom', x:390, y:865 },
+      { id:'bedroom-meal-4', area:'bedroom', x:1530, y:865 },
+      { id:'meal-1', area:'dining', x:752, y:588 },
+      { id:'meal-2', area:'dining', x:1352, y:590 },
+      { id:'meal-3', area:'dining', x:685, y:805 },
+      { id:'meal-4', area:'dining', x:1397, y:805 },
+      { id:'cloud-meal-1', area:'cloud', x:960, y:230 },
+      { id:'cloud-meal-2', area:'cloud', x:520, y:520 },
+      { id:'cloud-meal-3', area:'cloud', x:1400, y:520 },
+      { id:'cloud-meal-4', area:'cloud', x:960, y:820 }
+    ];
+    const LOG_STATION = { area:'dining', x:620, y:350 };
+    const WHEEL_STATION = { area:'dining', x:1720, y:830 };
+    const maps = {
+      bedroom: { label: 'ふかふか寝床', src: 'public/assets/maps/bedroom.webp' },
+      dining: { label: '丸太食堂', src: 'public/assets/maps/dining.webp' },
+      cloud: { label: '天空の雲庭', src: 'public/assets/maps/cloud-garden.webp' }
+    };
+    const areaTransitions = {
+      bedroom: { top:'cloud', bottom:'dining' },
+      dining: { top:'bedroom', bottom:'cloud' },
+      cloud: { top:'dining', bottom:'bedroom' }
+    };
+    const obstacles = {
+      bedroom: [{ type:'rect', x:675, y:285, width:590, height:505 }],
+      dining: [
+        { type:'capsule', ax:250, ay:690, bx:695, by:190, radius:112 },
+        { type:'rect', x:1030, y:170, width:685, height:275 },
+        { type:'rect', x:650, y:515, width:205, height:145 },
+        { type:'rect', x:1250, y:520, width:205, height:140 },
+        { type:'rect', x:575, y:730, width:220, height:145 },
+        { type:'rect', x:1290, y:735, width:215, height:145 }
+      ],
+      cloud: [
+        { type:'capsule', ax:800, ay:520, bx:1120, by:520, radius:180 },
+        { type:'circle', x:305, y:285, radius:100 },
+        { type:'circle', x:615, y:165, radius:95 },
+        { type:'circle', x:1305, y:165, radius:95 },
+        { type:'circle', x:1615, y:285, radius:100 },
+        { type:'circle', x:335, y:550, radius:85 },
+        { type:'circle', x:1585, y:550, radius:85 },
+        { type:'circle', x:320, y:805, radius:100 },
+        { type:'circle', x:615, y:875, radius:90 },
+        { type:'circle', x:1305, y:875, radius:90 },
+        { type:'circle', x:1600, y:805, radius:100 },
+        { type:'circle', x:0, y:0, radius:170 },
+        { type:'circle', x:1920, y:0, radius:170 },
+        { type:'circle', x:0, y:1080, radius:170 },
+        { type:'circle', x:1920, y:1080, radius:170 }
+      ]
+    };
+    const vents = [
+      { id:'bt', pair:'bb', area:'bedroom', x:960, y:84 },
+      { id:'bb', pair:'bt', area:'bedroom', x:960, y:995 },
+      { id:'dt', pair:'db', area:'dining', x:960, y:120 },
+      { id:'db', pair:'dt', area:'dining', x:960, y:955 },
+      { id:'dl', pair:'dr', area:'dining', x:125, y:540 },
+      { id:'dr', pair:'dl', area:'dining', x:1795, y:540 }
+    ];
+    const canvas = document.querySelector('#canvas');
+    const ctx = canvas.getContext('2d', { alpha:false });
+    const menu = document.querySelector('#menu');
+    const ventMenu = document.querySelector('#ventMenu');
+    const ventChoices = document.querySelector('#ventChoices');
+    const startButton = document.querySelector('#start');
+    const assetState = document.querySelector('#assetState');
+    const characterGrid = document.querySelector('#characters');
+    const areaText = document.querySelector('#area');
+    const lightText = document.querySelector('#light');
+    const hungerText = document.querySelector('#hunger');
+    const digestionText = document.querySelector('#digestion');
+    const powerText = document.querySelector('#power');
+    const stealButton = document.querySelector('#steal');
+    const ventButton = document.querySelector('#vent');
+    const blackoutButton = document.querySelector('#blackout');
+    const eatButton = document.querySelector('#eat');
+    const gnawButton = document.querySelector('#gnaw');
+    const wheelButton = document.querySelector('#wheel');
+    const joystick = document.querySelector('#joystick');
+    const knob = document.querySelector('#knob');
+    const toast = document.querySelector('#toast');
+    const images = { maps:{}, characters:{} };
+    const keys = new Set();
+    let selectedCharacter = 1;
+    let started = false;
+    let ventMenuOpen = false;
+    let lastTime = performance.now();
+    let stealUnlockAt = 0;
+    let pointerId = null;
+    let stick = { x:0, y:0 };
+    let blackoutActive = false;
+    let wheelCharge = 100;
+    let foodSpots = [];
+    let toastTimer = 0;
+    let player = { x:960, y:175, area:'bedroom', characterId:1, hunger:0, hungerDistance:0, digestionReady:false };
+    let dummies = [];
+
+    function imagePath(id) {
+      return `public/assets/characters/character-${String(id).padStart(2,'0')}.png`;
+    }
+
+    function loadImage(src) {
+      return new Promise((resolve, reject) => {
+        const image = new Image();
+        image.onload = () => resolve(image);
+        image.onerror = reject;
+        image.src = src;
+      });
+    }
+
+    for (let id=1; id<=12; id+=1) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = `character${id===1?' selected':''}`;
+      const image = document.createElement('img');
+      image.src = imagePath(id);
+      image.alt = `キャラクター${id}`;
+      const number = document.createElement('span');
+      number.textContent = id;
+      button.append(image,number);
+      button.addEventListener('click',() => {
+        selectedCharacter = id;
+        document.querySelectorAll('.character').forEach((item) => item.classList.toggle('selected', item===button));
+      });
+      characterGrid.append(button);
+    }
+
+    Promise.allSettled([
+      ...Object.entries(maps).map(async ([id,map]) => { images.maps[id] = await loadImage(map.src); }),
+      ...Array.from({length:12},(_,index) => index+1).map(async (id) => { images.characters[id] = await loadImage(imagePath(id)); })
+    ]).then((results) => {
+      const failed = results.filter((result) => result.status==='rejected').length;
+      if (failed) {
+        assetState.textContent = '画像を読み込めませんでした。ZIPを右クリックして「すべて展開」してから、もう一度開いてください。';
+        assetState.classList.add('error');
+        return;
+      }
+      assetState.textContent = '画像の準備ができました。';
+      startButton.disabled = false;
+    });
+
+    function resetGame() {
+      stealUnlockAt = performance.now() + 30000;
+      player = { x:960, y:175, area:'bedroom', characterId:selectedCharacter, hunger:0, hungerDistance:0, digestionReady:false };
+      const ids = Array.from({length:12},(_,index)=>index+1).filter((id)=>id!==selectedCharacter).slice(0,4);
+      const positions = [[850,175],[1070,175],[520,500],[1400,500]];
+      dummies = ids.map((characterId,index) => ({
+        x:positions[index][0], y:positions[index][1], area:'bedroom', characterId, ghost:false, name:`相手${index+1}`
+      }));
+      blackoutActive = false;
+      wheelCharge = 100;
+      foodSpots = createFoodSpots(foodSpots);
+      ventMenuOpen = false;
+      ventMenu.classList.add('hidden');
+    }
+
+    function showToast(message) {
+      clearTimeout(toastTimer);
+      toast.textContent = message;
+      toast.classList.add('show');
+      toastTimer = setTimeout(() => toast.classList.remove('show'),2600);
+    }
+
+    function circleRect(x,y,rect) {
+      const nx = Math.max(rect.x,Math.min(x,rect.x+rect.width));
+      const ny = Math.max(rect.y,Math.min(y,rect.y+rect.height));
+      return (x-nx)**2+(y-ny)**2 < RADIUS**2;
+    }
+
+    function segmentDistanceSq(px,py,shape) {
+      const dx=shape.bx-shape.ax, dy=shape.by-shape.ay;
+      const length=dx*dx+dy*dy;
+      const t=length ? Math.max(0,Math.min(1,((px-shape.ax)*dx+(py-shape.ay)*dy)/length)) : 0;
+      return (px-(shape.ax+dx*t))**2+(py-(shape.ay+dy*t))**2;
+    }
+
+    function collides(x,y,area) {
+      if (x-RADIUS<0 || y-RADIUS<0 || x+RADIUS>WORLD.width || y+RADIUS>WORLD.height) return true;
+      return (obstacles[area]||[]).some((shape) => {
+        if (shape.type==='rect') return circleRect(x,y,shape);
+        if (shape.type==='circle') return Math.hypot(x-shape.x,y-shape.y) < RADIUS+shape.radius;
+        return segmentDistanceSq(x,y,shape) < (RADIUS+shape.radius)**2;
+      });
+    }
+
+    function currentInput() {
+      if (ventMenuOpen) return { x:0, y:0 };
+      let x=stick.x, y=stick.y;
+      if (keys.has('ArrowLeft')||keys.has('KeyA')) x-=1;
+      if (keys.has('ArrowRight')||keys.has('KeyD')) x+=1;
+      if (keys.has('ArrowUp')||keys.has('KeyW')) y-=1;
+      if (keys.has('ArrowDown')||keys.has('KeyS')) y+=1;
+      const length=Math.hypot(x,y);
+      return length>1 ? {x:x/length,y:y/length} : {x,y};
+    }
+
+    function update(dt) {
+      const input=currentInput();
+      const previousX=player.x, previousY=player.y, previousArea=player.area;
+      const speed=player.hunger>=100 ? SPEED*.55 : SPEED;
+      const nextX=player.x+input.x*speed*dt;
+      if (!collides(nextX,player.y,player.area)) player.x=nextX;
+      const nextY=player.y+input.y*speed*dt;
+      const inDoor=player.x>=835&&player.x<=1085;
+      const transitions=areaTransitions[player.area]||areaTransitions.bedroom;
+      if (inDoor && nextY-RADIUS<0) {
+        player.area=transitions.top; player.y=WORLD.height-RADIUS-12;
+        showToast(`${maps[player.area].label}へ移動しました。`);
+      } else if (inDoor && nextY+RADIUS>WORLD.height) {
+        player.area=transitions.bottom; player.y=RADIUS+12;
+        showToast(`${maps[player.area].label}へ移動しました。`);
+      } else if (!collides(player.x,nextY,player.area)) player.y=nextY;
+      if (player.area===previousArea) {
+        player.hungerDistance+=Math.hypot(player.x-previousX,player.y-previousY);
+        const steps=Math.floor(player.hungerDistance/90);
+        if (steps) {
+          player.hungerDistance-=steps*90;
+          player.hunger=Math.min(100,player.hunger+steps*2);
+        }
+      }
+      wheelCharge=Math.max(0,wheelCharge-dt*(100/30));
+      if (wheelCharge===0&&!blackoutActive) {
+        blackoutActive=true;
+        showToast('回し車の電力が切れて、停電しました。');
+      }
+      updateButtons();
+    }
+
+    function nearestVent() {
+      return vents.filter((item)=>item.area===player.area)
+        .map((item)=>({item,distance:Math.hypot(item.x-player.x,item.y-player.y)}))
+        .sort((a,b)=>a.distance-b.distance)[0];
+    }
+
+    function chooseFoodSpot(area, previousId='') {
+      const choices=FOOD_SPOTS.filter((spot)=>spot.area===area&&spot.id!==previousId);
+      return choices[Math.floor(Math.random()*choices.length)];
+    }
+
+    function createFoodSpots(previous=[]) {
+      return Object.keys(maps).map((area)=> {
+        const old=previous.find((spot)=>spot.area===area);
+        return chooseFoodSpot(area,old?.id||'');
+      });
+    }
+
+    function nearestTarget() {
+      return dummies.filter((item)=>!item.ghost&&item.area===player.area)
+        .map((item)=>({item,distance:Math.hypot(item.x-player.x,item.y-player.y)}))
+        .filter((value)=>value.distance<=118).sort((a,b)=>a.distance-b.distance)[0]?.item;
+    }
+
+    function near(target,distance=150) {
+      return player.area===target.area&&Math.hypot(target.x-player.x,target.y-player.y)<=distance;
+    }
+
+    function updateButtons() {
+      const vent=nearestVent();
+      const stealSeconds=Math.max(0,Math.ceil((stealUnlockAt-performance.now())/1000));
+      stealButton.querySelector('small').textContent=stealSeconds ? `奪う：あと${stealSeconds}秒` : '奪う（E）';
+      stealButton.disabled=stealSeconds>0||!nearestTarget();
+      ventButton.disabled=!vent||vent.distance>120;
+      blackoutButton.disabled=blackoutActive;
+      eatButton.disabled=player.hunger<=0||!foodSpots.some((spot)=>near(spot));
+      gnawButton.disabled=player.digestionReady||!near(LOG_STATION);
+      wheelButton.disabled=!near(WHEEL_STATION);
+      areaText.textContent=maps[player.area].label;
+      lightText.textContent=blackoutActive ? '停電中：回し車で復旧' : '明かり：正常';
+      hungerText.textContent=`空腹度：${player.hunger} / 100${player.hunger>=100?'・移動低下':''}`;
+      digestionText.textContent=player.digestionReady?'吸収効率：最大':'吸収効率：半分';
+      powerText.textContent=`回し車：${Math.round(wheelCharge)}%`;
+    }
+
+    function drawCharacter(item,local,cameraX,cameraY) {
+      if (item.ghost) return;
+      const x=item.x-cameraX, y=item.y-cameraY;
+      const image=images.characters[item.characterId];
+      ctx.save();
+      ctx.fillStyle='rgba(30,18,12,.25)'; ctx.beginPath(); ctx.ellipse(x,y+25,38,12,0,0,Math.PI*2); ctx.fill();
+      if (local) { ctx.strokeStyle='#ffe376'; ctx.lineWidth=5; ctx.beginPath(); ctx.ellipse(x,y+18,43,22,0,0,Math.PI*2); ctx.stroke(); }
+      if (image) ctx.drawImage(image,x-48,y-72,96,96);
+      ctx.font='800 15px sans-serif'; ctx.textAlign='center';
+      const label=local?'自分':item.name;
+      const width=Math.max(52,ctx.measureText(label).width+14);
+      ctx.fillStyle='rgba(30,18,12,.78)'; ctx.fillRect(x-width/2,y-79,width,22);
+      ctx.fillStyle='#fff8e9'; ctx.fillText(label,x,y-63);
+      ctx.restore();
+    }
+
+    function drawMarker(target,icon,label,color) {
+      if (target.area!==player.area) return;
+      const pulse=45+Math.sin(performance.now()/250)*5;
+      ctx.strokeStyle=color; ctx.lineWidth=6; ctx.setLineDash([12,8]);
+      ctx.beginPath(); ctx.arc(target.x,target.y,pulse,0,Math.PI*2); ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle='rgba(28,18,13,.78)'; ctx.beginPath(); ctx.arc(target.x,target.y,31,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle='#fff'; ctx.font='32px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(icon,target.x,target.y);
+      ctx.font='900 16px sans-serif';
+      const width=Math.max(78,ctx.measureText(label).width+18);
+      ctx.fillStyle='rgba(28,18,13,.82)'; ctx.fillRect(target.x-width/2,target.y+48,width,25);
+      ctx.fillStyle='#fff8e9'; ctx.fillText(label,target.x,target.y+61);
+      ctx.textBaseline='alphabetic';
+    }
+
+    function draw() {
+      const cameraX=Math.max(0,Math.min(player.x-480,WORLD.width-960));
+      const cameraY=Math.max(0,Math.min(player.y-270,WORLD.height-540));
+      ctx.setTransform(1,0,0,1,0,0); ctx.fillStyle='#806248'; ctx.fillRect(0,0,960,540);
+      const map=images.maps[player.area];
+      if (map) ctx.drawImage(map,-cameraX,-cameraY,WORLD.width,WORLD.height);
+      ctx.save(); ctx.translate(-cameraX,-cameraY); ctx.strokeStyle='rgba(137,255,135,.72)'; ctx.lineWidth=6; ctx.setLineDash([14,9]);
+      for (const vent of vents.filter((item)=>item.area===player.area)) { ctx.beginPath(); ctx.arc(vent.x,vent.y,54,0,Math.PI*2); ctx.stroke(); }
+      for (const foodSpot of foodSpots) drawMarker(foodSpot,'🍱','食べる','rgba(255,221,102,.95)');
+      drawMarker(LOG_STATION,'🪵','丸太をかじる','rgba(242,167,87,.95)');
+      drawMarker(WHEEL_STATION,'☸',`回し車 ${Math.round(wheelCharge)}%`,wheelCharge<=25?'#ff695e':'#69e8dc');
+      ctx.restore();
+      for (const dummy of dummies.filter((item)=>item.area===player.area)) drawCharacter(dummy,false,cameraX,cameraY);
+      drawCharacter(player,true,cameraX,cameraY);
+      if (blackoutActive) {
+        const x=player.x-cameraX,y=player.y-cameraY;
+        ctx.fillStyle='rgba(2,3,7,.96)'; ctx.beginPath(); ctx.rect(0,0,960,540); ctx.moveTo(x+150,y); ctx.arc(x,y,150,0,Math.PI*2,true); ctx.fill('evenodd');
+      }
+    }
+
+    function frame(now) {
+      const dt=Math.min(.05,(now-lastTime)/1000); lastTime=now;
+      if (started) { update(dt); draw(); }
+      requestAnimationFrame(frame);
+    }
+
+    function steal() {
+      if (!started) return;
+      if (performance.now()<stealUnlockAt) return showToast('ゲーム開始から30秒間はナッツを奪えません。');
+      const target=nearestTarget();
+      if (!target) return showToast('近くにナッツを持つ相手がいません。');
+      target.ghost=true; showToast(`${target.name}のナッツを奪いました。`); updateButtons();
+    }
+
+    function useVent() {
+      const nearby=nearestVent();
+      if (!nearby||nearby.distance>120) return showToast('花柄・葉っぱ柄のマットに近づいてください。');
+      keys.clear(); resetStick(); ventChoices.replaceChildren();
+      for (const destination of vents.filter((item)=>item.id!==nearby.item.id)) {
+        const button=document.createElement('button');
+        button.type='button'; button.className='vent-choice';
+        const position=destination.id.endsWith('t')?'上側':destination.id.endsWith('b')?'下側':destination.id.endsWith('l')?'左側':'右側';
+        button.textContent=`❧ ${maps[destination.area].label}・${position}`;
+        button.addEventListener('click',()=>travelVent(destination));
+        ventChoices.append(button);
+      }
+      ventMenuOpen=true; ventMenu.classList.remove('hidden');
+    }
+
+    function travelVent(destination) {
+      player.x=destination.x; player.y=destination.y; player.area=destination.area;
+      closeVentMenu(); showToast(`${maps[player.area].label}へ移動しました。`); updateButtons();
+    }
+
+    function closeVentMenu() {
+      ventMenuOpen=false; ventMenu.classList.add('hidden'); ventChoices.replaceChildren();
+    }
+
+    function blackout() {
+      if (blackoutActive) return;
+      blackoutActive=true; showToast('停電させました。回し車で復旧できます。'); updateButtons();
+    }
+
+    function eat() {
+      const foodSpot=foodSpots.find((spot)=>near(spot));
+      if (!foodSpot) return showToast('光っている食事へ近づいてください。');
+      if (player.hunger<=0) return showToast('空腹度はすでに0です。');
+      const full=player.digestionReady;
+      player.hunger=full?0:Math.ceil(player.hunger/2);
+      player.hungerDistance=0;
+      player.digestionReady=false;
+      const mealIndex=foodSpots.findIndex((spot)=>spot.id===foodSpot.id);
+      foodSpots[mealIndex]=chooseFoodSpot(foodSpot.area,foodSpot.id);
+      showToast(full?'ご飯をしっかり吸収して、空腹度が0になりました。':`丸太をかじっていないため、空腹度は${player.hunger}です。`);
+      updateButtons();
+    }
+
+    function gnaw() {
+      if (!near(LOG_STATION)) return showToast('大きな丸太へ近づいてください。');
+      player.digestionReady=true;
+      showToast('丸太をかじりました。次のご飯をしっかり吸収できます。');
+      updateButtons();
+    }
+
+    function spinWheel() {
+      if (!near(WHEEL_STATION)) return showToast('回し車へ近づいてください。');
+      const restored=blackoutActive;
+      wheelCharge=100;
+      blackoutActive=false;
+      showToast(restored?'回し車を回して、停電を直しました。':'回し車を回して、電力を満タンにしました。');
+      updateButtons();
+    }
+
+    function updateStick(event) {
+      const rect=joystick.getBoundingClientRect(); const limit=rect.width*.34;
+      let x=event.clientX-(rect.left+rect.width/2),y=event.clientY-(rect.top+rect.height/2);
+      const length=Math.hypot(x,y); if (length>limit) { x=x/length*limit; y=y/length*limit; }
+      stick={x:x/limit,y:y/limit}; knob.style.transform=`translate(calc(-50% + ${x}px),calc(-50% + ${y}px))`;
+    }
+
+    function resetStick() { stick={x:0,y:0}; pointerId=null; knob.style.transform='translate(-50%,-50%)'; }
+
+    startButton.addEventListener('click',() => { resetGame(); started=true; lastTime=performance.now(); menu.classList.add('hidden'); updateButtons(); });
+    document.querySelector('#back').addEventListener('click',() => { started=false; keys.clear(); resetStick(); closeVentMenu(); menu.classList.remove('hidden'); });
+    document.querySelector('#closeVentMenu').addEventListener('click',closeVentMenu);
+    stealButton.addEventListener('click',steal); ventButton.addEventListener('click',useVent); blackoutButton.addEventListener('click',blackout);
+    eatButton.addEventListener('click',eat); gnawButton.addEventListener('click',gnaw); wheelButton.addEventListener('click',spinWheel);
+    window.addEventListener('keydown',(event) => {
+      if (ventMenuOpen) { if (event.code==='Escape') closeVentMenu(); return; }
+      keys.add(event.code);
+      if (['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(event.code)) event.preventDefault();
+      if (!event.repeat&&event.code==='KeyE') steal();
+      if (!event.repeat&&event.code==='KeyQ') useVent();
+      if (!event.repeat&&event.code==='KeyF') blackout();
+      if (!event.repeat&&event.code==='KeyZ') eat();
+      if (!event.repeat&&event.code==='KeyX') gnaw();
+      if (!event.repeat&&event.code==='KeyC') spinWheel();
+    },{passive:false});
+    window.addEventListener('keyup',(event)=>keys.delete(event.code)); window.addEventListener('blur',()=>keys.clear());
+    joystick.addEventListener('pointerdown',(event)=>{ pointerId=event.pointerId; joystick.setPointerCapture(pointerId); updateStick(event); });
+    joystick.addEventListener('pointermove',(event)=>{ if(event.pointerId===pointerId) updateStick(event); });
+    joystick.addEventListener('pointerup',resetStick); joystick.addEventListener('pointercancel',resetStick);
+    requestAnimationFrame(frame);
+  })();
+  </script>
+</body>
+</html>
